@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.BinaryNode;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.Tree;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,10 +55,16 @@ public class TreeNodeController {
         iNode=transitionTree(iNode,iList);
 
         //校验传入树的index下标，错误则返回
-
-
+        Boolean isOk=checkIndex(iNode,true);
+        if(!isOk){
+            return null;
+        }
+        DmlList list=DmlList.initList();
+        if(sNode.getNode().getId().compareTo(iNode.getNode().getId())!=0){
+            list.getAddList().add(iNode.getNode());
+        }
         //比较sNode树和iNode树
-        DmlList list=compareToTree(sNode,iNode,DmlList.initList());
+        list=compareToTree(sNode,iNode,list);
         //删除节点
         List<UUID> delList=new Vector<>();
         list.getDelList().forEach(e->{
@@ -246,6 +253,63 @@ public class TreeNodeController {
         return dmlList;
     }
 
+    class TreeNodeComparator implements Comparator<Node<TreeNodeEntity>>{
+
+        @Override
+        public int compare(Node<TreeNodeEntity> o1, Node<TreeNodeEntity> o2) {
+            return o1.getNode().getIndex()-o2.getNode().getIndex();
+        }
+    }
+
+    private Boolean checkIndex(Node<TreeNodeEntity> node,Boolean isTrue){
+        //
+        if(node.getChildNode()!=null){
+            List<Node<TreeNodeEntity>> list=node.getChildNode();
+            Collections.sort(list,new TreeNodeComparator());
+            for(int i=0;i<list.size();i++){
+                if(list.get(i).getNode().getIndex()!=i)
+                isTrue=false;
+            }
+            if(isTrue){
+                for(Node<TreeNodeEntity> n:list){
+                    //如果子节点为空，则直接返回isTrue
+                    if(n.getChildNode()==null){
+                    }
+                    isTrue=checkIndex(n,isTrue);
+                    if(!isTrue){
+                        break;
+                    }
+                }
+            }
+        }
+
+        //下面这个写法说不行，会有漏洞
+//        //子节点
+//        if(node.getChildNode()!=null){
+//            List<Node<TreeNodeEntity>> list=node.getChildNode();
+//            List<Integer> numList=new ArrayList<>();
+//            list.forEach(e->{
+//                numList.add(e.getNode().getIndex());
+//            });
+//            Integer maxValue=Collections.max(numList);
+//            if(maxValue+1!=list.size()){
+//                isTrue=false;
+//            }
+//            //如果该节点的下标正确，则获取该节点的子节点判断
+//            if(isTrue){
+//                for(Node<TreeNodeEntity> n:list){
+//                    //如果子节点为空，则直接返回isTrue
+//                    if(n.getChildNode()==null){
+//                    }
+//                    isTrue=checkIndex(n,isTrue);
+//                    if(!isTrue){
+//                        break;
+//                    }
+//                }
+//            }
+//        }
+        return isTrue;
+    }
 
     private List<TreeNodeEntity> addAddList(Node<TreeNodeEntity> inode,List<TreeNodeEntity> list){
         if(inode.getChildNode()==null){
